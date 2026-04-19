@@ -46,12 +46,9 @@ export default function FunStatsSection({ data }) {
   const {
     topLateNightArtist,
     comfortFood,
-    ghostTracks,
     patientTracks,
-    instantSkip,
     podcastMusicByYear,
-    oneHitWonders,
-    rabbitHoles,
+    autoInsights,
   } = data;
 
   return (
@@ -76,56 +73,41 @@ export default function FunStatsSection({ data }) {
           <TrackList items={comfortFood} mainKey="name" subKey="artist" valueKey="yearsPlayed" valueLabel="yrs" />
         </StatBadge>
 
-        {/* Ghost tracks */}
-        <StatBadge emoji="👻" title="Ghost Tracks — 30+ plays, mostly via shuffle/autoplay">
-          <p style={{ color: '#B3B3B3', fontSize: '0.75rem', margin: '0 0 8px' }}>
-            You've heard these dozens of times but probably couldn't name them.
-          </p>
-          <TrackList items={ghostTracks} mainKey="name" subKey="artist" valueKey="plays" valueLabel="plays" />
-        </StatBadge>
-
         {/* Most patient listener */}
         <StatBadge emoji="⏳" title="Most Patient — tracks you always let finish (avg listen time)">
           <TrackList items={patientTracks} mainKey="name" subKey="artist" valueKey="avgMin" valueLabel="min avg" />
         </StatBadge>
 
-        {/* Instant skip */}
-        <StatBadge emoji="⏭️" title="Instant Skip — tracks you always abandon immediately">
-          {instantSkip.length > 0 ? (
-            <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {instantSkip.map((t, i) => (
-                <li key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
-                    <p style={{ margin: 0, color: '#FFFFFF', fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</p>
-                    <p style={{ margin: '2px 0 0', color: '#B3B3B3', fontSize: '0.75rem' }}>{t.artist}</p>
-                  </div>
-                  <span style={{ color: '#ff6b6b', fontSize: '0.8rem', fontWeight: 600 }}>
-                    {t.avgSec.toFixed(0)}s avg
-                  </span>
-                </li>
-              ))}
-            </ol>
-          ) : <p style={{ color: '#B3B3B3', fontSize: '0.85rem' }}>Not enough data.</p>}
-        </StatBadge>
-
-        {/* One-hit wonders */}
-        <StatBadge emoji="☄️" title="One-Hit Wonders — played heavily for exactly one month, then gone">
-          {oneHitWonders.length > 0 ? (
-            <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {oneHitWonders.map((w, i) => (
-                <li key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <p style={{ margin: 0, color: '#FFFFFF', fontSize: '0.875rem' }}>{w.artist}</p>
-                    <p style={{ margin: '2px 0 0', color: '#B3B3B3', fontSize: '0.75rem' }}>{w.month}</p>
-                  </div>
-                  <span style={{ color: '#ffd93d', fontWeight: 600, fontSize: '0.8rem' }}>{w.hours.toFixed(1)}h</span>
-                </li>
-              ))}
-            </ol>
-          ) : <p style={{ color: '#B3B3B3', fontSize: '0.85rem' }}>No one-hit wonders found.</p>}
-        </StatBadge>
-
       </div>
+
+      {/* The Algorithm Has Read You */}
+      {autoInsights?.length > 0 && (
+        <div style={{ background: '#1a1a1a', borderRadius: 16, padding: '28px 32px', border: '1px solid #3E3E3E' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+            <span style={{ fontSize: '1.4rem' }}>🔍</span>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#FFFFFF', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                The Algorithm Has Read You
+              </h3>
+              <p style={{ margin: '3px 0 0', fontSize: '0.75rem', color: '#B3B3B3' }}>
+                Real insights extracted from your data — no astrology required
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 20 }}>
+            {autoInsights.map((insight, i) => (
+              <div key={i} style={{ borderLeft: '3px solid #1DB954', paddingLeft: 16 }}>
+                <p style={{ margin: '0 0 6px', color: '#FFFFFF', fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.4 }}>
+                  {insight.headline}
+                </p>
+                <p style={{ margin: 0, color: '#B3B3B3', fontSize: '0.82rem', lineHeight: 1.6 }}>
+                  {insight.body}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Podcasts vs music over time */}
       <Card title="Podcasts vs Music — hours per year">

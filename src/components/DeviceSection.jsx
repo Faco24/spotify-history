@@ -1,6 +1,6 @@
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  BarChart, Bar, CartesianGrid, LineChart, Line, Legend,
+  BarChart, Bar, CartesianGrid, LineChart, Line,
 } from 'recharts';
 import Card, { SectionHeader, COLORS, tooltipStyle } from './Card';
 
@@ -20,11 +20,16 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 export default function DeviceSection({ data }) {
-  const { platformByYear, allPlatforms, offlineByYear, shuffleByYear, incognitoByYear } = data;
+  const { platformByYear, allPlatforms, offlineByYear, shuffleByYear, deviceByYear, allDeviceKeys } = data;
 
-  // Assign colors to platforms
+  // Assign colors to platforms and devices
   const platformColors = {};
   allPlatforms.forEach((p, i) => { platformColors[p] = COLORS[i % COLORS.length]; });
+
+  const deviceColors = {};
+  allDeviceKeys?.forEach((d, i) => {
+    deviceColors[d] = d === 'Other' ? '#535353' : COLORS[i % COLORS.length];
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -105,27 +110,45 @@ export default function DeviceSection({ data }) {
         </ResponsiveContainer>
       </Card>
 
-      {/* Incognito */}
-      <Card title="Incognito mode usage over time">
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={incognitoByYear} barCategoryGap="30%">
-            <CartesianGrid vertical={false} stroke="#3E3E3E" />
-            <XAxis dataKey="year" tick={{ fill: '#B3B3B3', fontSize: 12 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fill: '#B3B3B3', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `${v.toFixed(0)}%`} />
-            <Tooltip
-              content={({ active, payload, label }) => {
-                if (!active || !payload?.length) return null;
-                return (
-                  <div style={{ ...tooltipStyle, padding: '10px 14px' }}>
-                    <p style={{ margin: 0, color: '#FFFFFF', fontWeight: 600 }}>{label}</p>
-                    <p style={{ margin: '4px 0 0', color: '#ff6b6b' }}>{payload[0]?.value?.toFixed(2)}% incognito</p>
-                  </div>
-                );
-              }}
-            />
-            <Bar dataKey="incognito" name="Incognito %" fill="#ff6b6b" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+      {/* Device breakdown over time */}
+      <Card title="Device breakdown over time (hours/year)">
+        <p style={{ color: '#B3B3B3', fontSize: '0.8rem', margin: '0 0 16px' }}>
+          Specific models shown when your device reported them. "Other Android / iPhone" = model not reported.
+        </p>
+        {deviceByYear?.length > 0 ? (
+          <>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={deviceByYear}>
+                <CartesianGrid vertical={false} stroke="#3E3E3E" />
+                <XAxis dataKey="year" tick={{ fill: '#B3B3B3', fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: '#B3B3B3', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} />
+                {allDeviceKeys.map(d => (
+                  <Area
+                    key={d}
+                    type="monotone"
+                    dataKey={d}
+                    stackId="1"
+                    stroke={deviceColors[d]}
+                    fill={deviceColors[d]}
+                    fillOpacity={0.6}
+                    name={d}
+                  />
+                ))}
+              </AreaChart>
+            </ResponsiveContainer>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 12 }}>
+              {allDeviceKeys.map(d => (
+                <span key={d} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', color: '#B3B3B3' }}>
+                  <span style={{ width: 10, height: 10, background: deviceColors[d], borderRadius: 2, flexShrink: 0 }} />
+                  {d}
+                </span>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p style={{ color: '#B3B3B3' }}>No device data found.</p>
+        )}
       </Card>
     </div>
   );

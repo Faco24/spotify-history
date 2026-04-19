@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { processData } from './utils/dataProcessor';
+import { processData, computeGenreData } from './utils/dataProcessor';
 import DataLoader from './components/DataLoader';
 import WrappedDashboard from './components/WrappedDashboard';
 import EvolutionSection from './components/EvolutionSection';
@@ -17,16 +17,57 @@ const TABS = [
   { id: 'fun', label: 'Fun Stats' },
 ];
 
+async function fetchGenreMap(artists, apiKey) {
+  const prompt = `You are a music genre expert. For each artist listed below, assign the most specific genre label that a music fan would actually use.
+Avoid vague labels like "Rock", "Pop", "Electronic", "Hip-Hop", "Alternative".
+Use specific ones like: "Britpop", "Shoegaze", "Neo Soul", "Argentine Rock", "Indie Folk", "Synthwave", "Post-Hardcore", "New Wave", "MPB", "Nu-Disco", "Trip-Hop", "French House", "Cumbia", "Reggaeton", "Grunge", "Art Rock", "Psychedelic Pop", "Deep House", "Neoclassical", etc.
+
+Return ONLY a valid JSON object mapping each artist name exactly as given to a single genre string. No markdown fences, no explanation — just the raw JSON object.
+
+Artists:
+${artists.join('\n')}`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2048,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `Anthropic API error ${res.status}`);
+  }
+
+  const json = await res.json();
+  const text = json.content?.[0]?.text || '';
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('Could not parse genre map from API response');
+  return JSON.parse(match[0]);
+}
+
 export default function App() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState('');
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('wrapped');
+  const [genreStatus, setGenreStatus] = useState('idle'); // 'idle'|'loading'|'ready'|'error'
+  const [genreError, setGenreError] = useState(null);
 
   const handleFiles = useCallback(async (files) => {
     setLoading(true);
     setError(null);
+    setGenreStatus('idle');
+    setGenreError(null);
     setProgress('Reading files…');
     try {
       const allEntries = [];
@@ -49,6 +90,25 @@ export default function App() {
       setProgress('');
     }
   }, []);
+
+  const handleFetchGenres = useCallback(async (apiKey) => {
+    setGenreStatus('loading');
+    setGenreError(null);
+    try {
+      const top50 = [...data.artistMap.entries()]
+        .sort((a, b) => b[1].ms - a[1].ms)
+        .slice(0, 50)
+        .map(([name]) => name);
+      const genreMap = await fetchGenreMap(top50, apiKey);
+      const genreData = computeGenreData(data, genreMap);
+      setData(prev => ({ ...prev, ...genreData }));
+      setGenreStatus('ready');
+    } catch (gErr) {
+      console.error('Genre fetch failed:', gErr);
+      setGenreError(gErr.message);
+      setGenreStatus('error');
+    }
+  }, [data]);
 
   if (!data && !loading) {
     return <DataLoader onFiles={handleFiles} error={error} />;
@@ -117,7 +177,7 @@ export default function App() {
       {/* Main content */}
       <main style={{ maxWidth: 1280, margin: '0 auto', padding: '32px 16px' }}>
         {activeTab === 'wrapped' && <WrappedDashboard data={data} />}
-        {activeTab === 'evolution' && <EvolutionSection data={data} />}
+        {activeTab === 'evolution' && <EvolutionSection data={data} genreStatus={genreStatus} genreError={genreError} onFetchGenres={handleFetchGenres} />}
         {activeTab === 'devices' && <DeviceSection data={data} />}
         {activeTab === 'behavior' && <BehaviorSection data={data} />}
         {activeTab === 'search' && <SearchSection data={data} />}

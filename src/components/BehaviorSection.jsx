@@ -34,7 +34,6 @@ const REASON_LABELS = {
 
 export default function BehaviorSection({ data }) {
   const {
-    mostSkipped, leastSkipped,
     reasonStartBreakdown, reasonEndBreakdown,
     lateNightByYear,
     weekendHours, weekdayHours,
@@ -56,40 +55,6 @@ export default function BehaviorSection({ data }) {
         title="Behavioral Insights"
         subtitle="Your listening habits, patterns, and unexpected correlations"
       />
-
-      {/* Skip rate */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        <Card title="Most skipped artists (min 20 plays)">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {mostSkipped.map((a, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#FFFFFF', fontSize: '0.875rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.artist}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 12 }}>
-                  <div style={{ width: 80, height: 4, background: '#3E3E3E', borderRadius: 2 }}>
-                    <div style={{ height: '100%', width: `${a.skipRate}%`, background: '#ff6b6b', borderRadius: 2 }} />
-                  </div>
-                  <span style={{ color: '#ff6b6b', fontSize: '0.75rem', width: 36, textAlign: 'right' }}>{a.skipRate.toFixed(0)}%</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-        <Card title="Least skipped artists (min 20 plays)">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {leastSkipped.map((a, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#FFFFFF', fontSize: '0.875rem', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.artist}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 12 }}>
-                  <div style={{ width: 80, height: 4, background: '#3E3E3E', borderRadius: 2 }}>
-                    <div style={{ height: '100%', width: `${a.skipRate}%`, background: '#1DB954', borderRadius: 2 }} />
-                  </div>
-                  <span style={{ color: '#1DB954', fontSize: '0.75rem', width: 36, textAlign: 'right' }}>{a.skipRate.toFixed(0)}%</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
 
       {/* Reason start / end */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
