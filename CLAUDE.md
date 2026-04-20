@@ -14,13 +14,17 @@ No test suite exists yet.
 
 ## What This App Does
 
-Client-side React app that visualizes Spotify Extended Streaming History. The user drag-drops their `Streaming_History_Audio_*.json` files; everything is parsed and computed in the browser — no backend, no API calls.
+Client-side React app that visualizes Spotify Extended Streaming History. The user drag-drops their `Streaming_History_Audio_*.json` files; everything is parsed and computed in the browser — no backend. Optional genre analysis makes one API call to Anthropic using the user's own key.
 
 ## Architecture
 
 ### Data flow (read this first)
 
-All processing happens exactly once in **`src/utils/dataProcessor.js`** → `processData(rawEntries[])`. It returns a single large object that every component reads via a `data` prop. Components never recompute — they only destructure from `data`.
+**Step 1 — Web Worker.** `App.jsx` spawns `src/workers/processWorker.js` (a Web Worker) in `handleFiles` and posts the raw entries array to it. The worker calls `processData()` off the main thread and posts back `{ ok, result }`. Do not call `processData()` directly from a component or the main thread.
+
+**Step 2 — Primary processing.** `processData(rawEntries[])` in `src/utils/dataProcessor.js` returns a single large object that every component reads via a `data` prop. Components never recompute — they only destructure from `data`.
+
+**Step 3 — Genre data (opt-in).** If the user supplies an Anthropic API key, `App.jsx` sends the top-50 artist names to Claude Haiku 4.5 and gets back a `{ [artist]: genre }` map. It then calls `computeGenreData(data, genreMap)` — a second export in `dataProcessor.js` — and merges the result into app state via `setData(prev => ({ ...prev, ...genreData }))`. This is the **only exception** to the "processData is the single source of truth" rule.
 
 `App.jsx` owns the state machine: no data → `<DataLoader>` → loading spinner → tab dashboard. The `data` object is passed down to whichever tab component is active.
 
@@ -34,7 +38,7 @@ All processing happens exactly once in **`src/utils/dataProcessor.js`** → `pro
 
 ### Adding a new stat or chart
 
-1. Add the aggregation to `processData()` in `dataProcessor.js` and include it in the returned object.
+1. Add the aggregation to `processData()` in `dataProcessor.js` and include it in the returned object. **Exception:** if the stat depends on genre labels, add it to `computeGenreData()` instead — `processData` runs before the user opts into genre analysis.
 2. Destructure it in the relevant tab component — do not compute inside a component.
 3. Use `<Card>`, `<RankList>`, `<StatNumber>` from `Card.jsx` for consistent styling.
 4. Use `tooltipStyle` from `Card.jsx` for custom Recharts tooltips.

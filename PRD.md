@@ -1,7 +1,7 @@
 # PRD — Spotify Listening History Visualizer
 **Status:** v1.0 built and working  
 **Repo:** https://github.com/Faco24/spotify-history  
-**Last updated:** 2026-04-16
+**Last updated:** 2026-04-19
 
 ---
 
@@ -27,8 +27,9 @@ npm start       # opens at http://localhost:5173
 | Date helpers | date-fns 4 (installed, minimal use) |
 | Build | Vite (ESM, no backend) |
 | Hosting | Local only (`npm start`) |
+| AI (optional) | Claude Haiku 4.5 via Anthropic API — genre labeling only, browser-direct, user-supplied key |
 
-**Key design constraint:** Everything runs in the browser. No server, no database, no API keys required.
+**Key design constraint:** Everything runs in the browser. No server, no database. No API keys required for core features; optional genre analysis uses your own Anthropic API key (entered in-app, never stored).
 
 ---
 
@@ -79,9 +80,19 @@ Older Spotify exports use a different schema with `endTime`, `msPlayed`, `artist
 
 ## 4. Data Processing Architecture
 
+### Web Worker
+
+`processData()` runs off the main thread inside `src/workers/processWorker.js`. `App.jsx` spawns the worker in `handleFiles`, posts the raw entries array, and awaits a single `{ ok, result }` message. This prevents UI freeze on large datasets (was 2–5 s on main thread). **Do not call `processData()` directly from a component or the main thread.**
+
+### Primary processing
+
 All processing happens once in `src/utils/dataProcessor.js` → `processData(rawEntries)`. Components never recalculate — they only read pre-computed results.
 
-### Processing pipeline
+### Secondary processing — genre data
+
+`computeGenreData(data, genreMap)` is a second exported function in `dataProcessor.js` that runs *after* `processData`, triggered by an opt-in Anthropic API call in `App.jsx`. It receives the already-processed `data` object plus a `{ [artistName]: genre }` map covering the top 50 artists. The result is merged into the app state via `setData(prev => ({ ...prev, ...genreData }))`. This is the **only exception** to the "processData is the single source of truth" rule. Returns: `{ genreBreakdown, genreByYear, topGenreByYear, allChartGenres }`.
+
+### Primary processing pipeline
 1. **Normalize** — remap old-format entries to new schema
 2. **Coerce** — `ms_played` → `Number()` to handle string/null variants
 3. **Filter invalids** — drop entries with null/unparseable `ts` or negative `ms_played`
@@ -168,20 +179,23 @@ function parseTS(ts) {
 
 ```
 src/
-├── App.jsx                      # Tab router + file loading state machine
+├── App.jsx                      # Tab router + file loading state machine + genre fetch
 ├── index.css                    # Global styles + Tailwind import
 ├── main.jsx                     # React root
 ├── components/
 │   ├── Card.jsx                 # Reusable Card, StatNumber, RankList, SectionHeader, COLORS
 │   ├── DataLoader.jsx           # Drag-and-drop file upload screen
 │   ├── WrappedDashboard.jsx     # Tab 1: All-Time Wrapped
-│   ├── EvolutionSection.jsx     # Tab 2: Evolution Over Time
+│   ├── EvolutionSection.jsx     # Tab 2: Evolution + Genre analysis
 │   ├── DeviceSection.jsx        # Tab 3: Devices & Platforms
 │   ├── BehaviorSection.jsx      # Tab 4: Behavioral Insights
 │   ├── SearchSection.jsx        # Tab 5: Search & Explore
-│   └── FunStatsSection.jsx      # Tab 6: Fun Stats
-└── utils/
-    └── dataProcessor.js         # All data processing (single export: processData)
+│   ├── FunStatsSection.jsx      # Tab 6: Fun Stats
+│   └── PodcastSection.jsx       # Tab 7: Podcasts
+├── utils/
+│   └── dataProcessor.js         # processData() + computeGenreData()
+└── workers/
+    └── processWorker.js         # Web Worker wrapper — calls processData off main thread
 ```
 
 ---
@@ -207,7 +221,8 @@ src/
 - Most listened single day card (date + hours + top 5 tracks that day)
 
 ### Tab 2 — Evolution (`EvolutionSection.jsx`)
-- **Bump chart** — top 5 artists ranked year-by-year (y-axis inverted, #1 at top). Only shows artists who appeared in top 5 in ≥2 years. Built with Recharts `LineChart`.
+- **Rank grid** — top 5 artists ranked year-by-year in a custom CSS grid (replaced the Recharts bump chart). Shows rank position per year with color-coded cells; artists that appeared in ≥2 years are highlighted.
+- **Genre analysis** *(opt-in)* — stacked area chart of listening hours per genre per year, plus a top-genre-by-year strip. Triggered by the user pasting their Anthropic API key; genres are fetched for the top 50 artists using Claude Haiku 4.5. Before the API call, the genre section shows an input prompt.
 - **Listening heatmap** — 7 rows (days of week) × 24 columns (hours). Color intensity = total hours. Custom CSS grid, not a Recharts component.
 - **Obsession phases** — list of artist-month pairs where listening was 3× the artist's monthly average AND ≥5 hours
 
@@ -216,6 +231,13 @@ src/
 - Offline vs Online listening % per year (stacked bar)
 - Shuffle mode % per year (line chart)
 - Incognito mode % per year (bar chart)
+
+### Tab 7 — Podcasts (`PodcastSection.jsx`)
+- Summary stats: total podcast hours, unique shows, unique episodes
+- Top shows by hours — ranked list with progress bars
+- Top episodes by hours — ranked list
+- Per-year top-5 shows grid — custom CSS grid, color-coded by show, hover tooltips
+- Hours-per-year bar chart
 
 ### Tab 4 — Behavior (`BehaviorSection.jsx`)
 - Most skipped artists (min 20 plays) — skip rate % bar
@@ -310,27 +332,26 @@ tooltipStyle   // standard dark tooltip object
 - **Rabbit hole detection** — 10+ consecutive same-artist plays with <30 min gap between plays
 - **Comfort food threshold** — present in ≥60% of active years (and ≥3 years minimum)
 
+### Privacy model
+The default mode is 100% local — no data leaves the browser. The opt-in genre analysis is the only exception: it sends the **names of the top 50 artists** (not listening history, timestamps, or personal fields) to the Anthropic API using the user's own API key entered in-app. The key is not stored anywhere and is only used for that single API call.
+
 ---
 
 ## 11. What Is NOT Yet Built
 
-The following features were specified in the original brief but not yet implemented:
+The following features are not yet implemented:
 
 ### Missing analyses
-- [ ] **Rabbit holes detection in Behavior tab** — logic exists in `dataProcessor.js`, card exists in `BehaviorSection.jsx`, but the `rabbitHoles` data may not display correctly (needs QA)
 - [ ] **"Reason start/end over time"** — currently shows all-time aggregate, not year-by-year trend
-- [ ] **Top 5 artist bump chart polish** — currently works but may need label overlays on the lines for readability
 
 ### Missing UI features
 - [ ] **Export / share** — no way to screenshot or share a specific stat card
 - [ ] **Date range filter** — no way to filter the entire dashboard to a custom year range
 - [ ] **Mobile layout** — app is desktop-first; some charts overflow on small screens
-- [ ] **Loading progress bar** — currently just shows text; no visual progress indicator
 - [ ] **Empty state handling** — if search returns no results, UX is minimal
 
 ### Performance
 - [ ] **Virtualized lists** — long lists (e.g., 200k entries in Search) are not virtualized
-- [ ] **Web Worker** — `processData()` runs on the main thread and can freeze the UI for 2–5 seconds on large datasets; should be moved to a Web Worker
 
 ---
 
@@ -339,13 +360,11 @@ The following features were specified in the original brief but not yet implemen
 Ordered by user value:
 
 1. **Date range filter** — slider or year picker to filter the whole dashboard to a time window
-2. **Web Worker for processing** — move `processData()` off the main thread to prevent UI freeze
-3. **Export stats as image** — "share your wrapped" card export
-4. **Mobile responsive layout** — current layout breaks on phones
-5. **"Listening sessions" analysis** — detect contiguous listening sessions and analyze session length over time
-6. **Genre analysis** — requires Spotify API lookup (can't be inferred from the data alone)
-7. **Listening clock** — radial chart of hours by time of day (polar area chart)
-8. **Comparison mode** — if user has multiple Spotify accounts' data, compare them
+2. **Export stats as image** — "share your wrapped" card export
+3. **Mobile responsive layout** — current layout breaks on phones
+4. **"Listening sessions" analysis** — detect contiguous listening sessions and analyze session length over time
+5. **Listening clock** — radial chart of hours by time of day (polar area chart)
+6. **Comparison mode** — if user has multiple Spotify accounts' data, compare them
 
 ---
 

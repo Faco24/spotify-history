@@ -4,7 +4,7 @@ Visualize your Spotify Extended Streaming History — entirely in your browser.
 
 ![Dashboard screenshot](./screenshot.png)
 
-> **Privacy first:** Your data never leaves your machine. No backend, no uploads, no tracking. All parsing and computation happens client-side.
+> **Privacy first:** Your data never leaves your machine. No backend, no uploads, no tracking. All parsing and computation happens client-side. Exception: if you opt into genre analysis, the names of your top 50 artists are sent to Anthropic using an API key you supply — no listening history or personal data, just artist names.
 
 ---
 
