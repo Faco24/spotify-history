@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  XAxis, YAxis, Tooltip, ResponsiveContainer,
   CartesianGrid, Cell, BarChart, Bar,
   PieChart, Pie, AreaChart, Area,
 } from 'recharts';
@@ -69,77 +69,89 @@ function Heatmap({ heatmap }) {
 }
 
 function BumpChart({ top5ByYear }) {
-  // Build series: for each artist that ever appeared in top 5, track their rank per year
-  const artistSet = new Set();
+  const [tooltip, setTooltip] = useState(null); // { artist, color, x, y }
+
+  // Assign a stable color to each unique artist across all years
+  const artistColorMap = {};
+  let colorIdx = 0;
   for (const { artists } of top5ByYear) {
-    for (const a of artists) artistSet.add(a.artist);
+    for (const a of artists) {
+      if (!(a.artist in artistColorMap)) {
+        artistColorMap[a.artist] = COLORS[colorIdx % COLORS.length];
+        colorIdx++;
+      }
+    }
   }
 
-  // Only show artists who appeared in top 5 at least 3 times (reduces isolated-dot noise)
-  const filtered = [...artistSet].filter(artist => {
-    return top5ByYear.filter(y => y.artists.find(a => a.artist === artist)).length >= 3;
-  });
-
-  // Build data: one row per year
-  const data = top5ByYear.map(({ year, artists }) => {
-    const obj = { year };
-    for (const artist of filtered) {
-      const found = artists.find(a => a.artist === artist);
-      obj[artist] = found ? found.rank : null;
-    }
-    return obj;
-  });
-
-  const artistColors = {};
-  filtered.forEach((a, i) => { artistColors[a] = COLORS[i % COLORS.length]; });
-
   return (
-    <div>
-      <ResponsiveContainer width="100%" height={320}>
-        <LineChart data={data} margin={{ top: 24, right: 16, bottom: 8, left: 0 }}>
-          <CartesianGrid vertical={false} stroke="#3E3E3E" />
-          <XAxis dataKey="year" tick={{ fill: '#B3B3B3', fontSize: 12 }} axisLine={false} tickLine={false} />
-          <YAxis
-            reversed domain={[1, 5]} ticks={[1, 2, 3, 4, 5]}
-            tick={{ fill: '#B3B3B3', fontSize: 11 }} axisLine={false} tickLine={false}
-            tickFormatter={v => `#${v}`}
-          />
-          <Tooltip
-            content={({ active, payload, label }) => {
-              if (!active || !payload?.length) return null;
-              const validPayload = payload.filter(p => p.value != null).sort((a, b) => a.value - b.value);
+    <div style={{ overflowX: 'auto', position: 'relative' }}>
+      {tooltip && (
+        <div style={{
+          position: 'fixed',
+          left: tooltip.x + 12,
+          top: tooltip.y - 8,
+          background: '#1a1a1a',
+          border: `1px solid ${tooltip.color}`,
+          borderRadius: 8,
+          padding: '6px 12px',
+          color: '#FFFFFF',
+          fontSize: '0.8rem',
+          fontWeight: 600,
+          pointerEvents: 'none',
+          zIndex: 9999,
+          whiteSpace: 'nowrap',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+        }}>
+          <span style={{ color: tooltip.color }}>{tooltip.artist}</span>
+        </div>
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: `40px repeat(${top5ByYear.length}, minmax(90px, 1fr))`, gap: 0 }}>
+        {/* Header row — years */}
+        <div />
+        {top5ByYear.map(({ year }) => (
+          <div key={year} style={{ textAlign: 'center', color: '#B3B3B3', fontSize: '0.8rem', fontWeight: 600, padding: '0 4px 10px' }}>
+            {year}
+          </div>
+        ))}
+        {/* Rank rows 1–5 */}
+        {[1, 2, 3, 4, 5].map(rank => (
+          <>
+            <div key={`label-${rank}`} style={{ color: '#B3B3B3', fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              #{rank}
+            </div>
+            {top5ByYear.map(({ year, artists }) => {
+              const entry = artists.find(a => a.rank === rank);
               return (
-                <div style={{ ...tooltipStyle, padding: '10px 14px', minWidth: 160 }}>
-                  <p style={{ margin: '0 0 8px', fontWeight: 600, color: '#FFFFFF' }}>{label}</p>
-                  {validPayload.map((p, i) => (
-                    <p key={i} style={{ margin: '2px 0', color: p.color, fontSize: '0.8rem' }}>
-                      #{p.value} {p.dataKey}
-                    </p>
-                  ))}
+                <div key={`${year}-${rank}`} style={{ padding: '3px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {entry ? (
+                    <span
+                      onMouseEnter={e => setTooltip({ artist: entry.artist, color: artistColorMap[entry.artist], x: e.clientX, y: e.clientY })}
+                      onMouseMove={e => setTooltip(t => ({ ...t, x: e.clientX, y: e.clientY }))}
+                      onMouseLeave={() => setTooltip(null)}
+                      style={{
+                        background: artistColorMap[entry.artist],
+                        color: '#000',
+                        fontWeight: 600,
+                        fontSize: '0.68rem',
+                        padding: '4px 8px',
+                        borderRadius: 12,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: '100%',
+                        display: 'block',
+                        textAlign: 'center',
+                        cursor: 'default',
+                      }}>
+                      {entry.artist}
+                    </span>
+                  ) : (
+                    <span style={{ color: '#3E3E3E', fontSize: '0.7rem' }}>—</span>
+                  )}
                 </div>
               );
-            }}
-          />
-          {filtered.map(artist => (
-            <Line
-              key={artist}
-              type="monotone"
-              dataKey={artist}
-              stroke={artistColors[artist]}
-              strokeWidth={2}
-              dot={{ r: 4, fill: artistColors[artist] }}
-              connectNulls={true}
-            />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
-      {/* Legend */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginTop: 12 }}>
-        {filtered.map(artist => (
-          <span key={artist} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', color: '#B3B3B3' }}>
-            <span style={{ width: 12, height: 3, background: artistColors[artist], borderRadius: 2, flexShrink: 0 }} />
-            {artist}
-          </span>
+            })}
+          </>
         ))}
       </div>
     </div>
@@ -175,7 +187,7 @@ export default function EvolutionSection({ data, genreStatus, genreError, onFetc
       {/* Bump chart */}
       <Card title="Top 5 Artists — Rank over time">
         <p style={{ color: '#B3B3B3', fontSize: '0.8rem', margin: '0 0 16px' }}>
-          Y-axis = rank (#1 at top). Artists shown if they reached top 5 in at least 3 years. Lines connect across gaps.
+          Your top 5 most-played artists each year, ranked by total listening time.
         </p>
         <BumpChart top5ByYear={top5ByYear} />
       </Card>
