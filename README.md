@@ -1,16 +1,43 @@
-# React + Vite
+# Spotify Streaming History Visualizer
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Visualize your Spotify Extended Streaming History — entirely in your browser.
 
-Currently, two official plugins are available:
+![Dashboard screenshot](./screenshot.png)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+> **Privacy first:** Your data never leaves your machine. No backend, no uploads, no tracking. All parsing and computation happens client-side.
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Getting your data
 
-## Expanding the ESLint configuration
+1. Go to [Spotify Privacy Settings](https://www.spotify.com/account/privacy/)
+2. Scroll to **Download your data** and request **Extended streaming history**
+3. Spotify will email you a download link — this can take a few days
+4. Unzip the file; look for files named `Streaming_History_Audio_*.json`
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Running locally
+
+```bash
+npm install
+npm start        # opens at http://localhost:5173
+```
+
+## How to use
+
+Drag and drop your `Streaming_History_Audio_*.json` files onto the loader. The app parses them instantly and shows a multi-tab dashboard with listening stats, top artists, tracks, albums, hourly/weekly patterns, podcast history, and a search tool.
+
+## Tech stack
+
+- React 19
+- Vite 8
+- Recharts
+- Tailwind CSS 4
+- date-fns
+
+## Contributing / extending
+
+See [`CLAUDE.md`](./CLAUDE.md) for the full architecture guide — data flow, critical invariants, how to add new stats or charts, and styling conventions.
+
+## License
+
+MIT
