@@ -1161,6 +1161,110 @@ export function processData(rawEntries) {
     });
   }
 
+  // ── Podcast analysis ──────────────────────────────────────────────────────
+  const podcastsSorted = podcasts
+    .filter(e => !!parseTS(e.ts))
+    .sort((a, b) => parseTS(a.ts) - parseTS(b.ts));
+
+  // Show map: show name → { ms, plays, episodes (Set), years (Set) }
+  const showMap = new Map();
+  for (const e of podcastsSorted) {
+    const show = e.episode_show_name || 'Unknown Show';
+    if (!showMap.has(show)) showMap.set(show, { ms: 0, plays: 0, episodes: new Set(), years: new Set() });
+    const s = showMap.get(show);
+    s.ms += e.ms_played;
+    s.plays++;
+    if (e.episode_name) s.episodes.add(e.episode_name);
+    const d = parseTS(e.ts);
+    if (d) s.years.add(d.getUTCFullYear());
+  }
+
+  // Top 10 shows all-time
+  const topShows = [...showMap.entries()]
+    .sort((a, b) => b[1].ms - a[1].ms)
+    .slice(0, 10)
+    .map(([name, val]) => ({ name, hours: msToHours(val.ms), plays: val.plays, episodes: val.episodes.size }));
+
+  // Total unique shows and episodes
+  const uniqueShows = showMap.size;
+  const uniqueEpisodes = new Set(podcastsSorted.map(e => e.episode_name).filter(Boolean)).size;
+
+  // First podcast ever
+  const firstPodcast = podcastsSorted.length > 0
+    ? { date: parseTS(podcastsSorted[0].ts), show: podcastsSorted[0].episode_show_name || 'Unknown', episode: podcastsSorted[0].episode_name || '' }
+    : null;
+
+  // Top 5 shows by year
+  const podcastYearShowMap = new Map(); // year → Map<show, ms>
+  for (const e of podcastsSorted) {
+    const d = parseTS(e.ts);
+    if (!d) continue;
+    const y = d.getUTCFullYear();
+    const show = e.episode_show_name || 'Unknown Show';
+    if (!podcastYearShowMap.has(y)) podcastYearShowMap.set(y, new Map());
+    const ym = podcastYearShowMap.get(y);
+    ym.set(show, (ym.get(show) || 0) + e.ms_played);
+  }
+  const podcastTop5ByYear = years.map(y => {
+    const ym = podcastYearShowMap.get(y);
+    if (!ym || ym.size === 0) return { year: y, shows: [] };
+    const sorted = [...ym.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return {
+      year: y,
+      shows: sorted.map(([name, ms], i) => ({ show: name, hours: msToHours(ms), rank: i + 1 })),
+    };
+  });
+
+  // Hour-of-day comparison: podcasts vs music
+  const podcastByHour = Array(24).fill(0);
+  const musicByHour = Array(24).fill(0);
+  for (const e of podcastsSorted) {
+    const d = parseTS(e.ts);
+    if (d) podcastByHour[d.getUTCHours()] += msToHours(e.ms_played);
+  }
+  for (const e of music) {
+    const d = parseTS(e.ts);
+    if (d) musicByHour[d.getUTCHours()] += msToHours(e.ms_played);
+  }
+  const hourComparison = Array.from({ length: 24 }, (_, i) => ({
+    hour: i === 0 ? '12am' : i === 12 ? '12pm' : i < 12 ? `${i}am` : `${i - 12}pm`,
+    podcast: podcastByHour[i],
+    music: musicByHour[i],
+  }));
+
+  // Fun: longest podcast day
+  const podcastDayMap = new Map(); // dateStr → { ms, shows }
+  for (const e of podcastsSorted) {
+    const d = parseTS(e.ts);
+    if (!d) continue;
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+    if (!podcastDayMap.has(key)) podcastDayMap.set(key, { ms: 0, shows: new Map() });
+    const day = podcastDayMap.get(key);
+    day.ms += e.ms_played;
+    const show = e.episode_show_name || 'Unknown';
+    day.shows.set(show, (day.shows.get(show) || 0) + e.ms_played);
+  }
+  let longestPodcastDay = null;
+  for (const [date, { ms, shows }] of podcastDayMap) {
+    if (!longestPodcastDay || ms > longestPodcastDay.ms) {
+      const topShows = [...shows.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name]) => name);
+      longestPodcastDay = { date, ms, hours: msToHours(ms), shows: topShows };
+    }
+  }
+
+  // Fun: one and done — shows listened to exactly 1 time (1 play)
+  const oneAndDone = [...showMap.entries()]
+    .filter(([, v]) => v.plays === 1)
+    .map(([name]) => name)
+    .slice(0, 15);
+
+  // Fun: ride or die — shows across the most different years
+  const rideOrDie = [...showMap.entries()]
+    .filter(([, v]) => v.years.size >= 2)
+    .sort((a, b) => b[1].years.size - a[1].years.size || b[1].ms - a[1].ms)
+    .slice(0, 10)
+    .map(([name, v]) => ({ name, years: v.years.size, hours: msToHours(v.ms) }));
+
   return {
     // Meta
     totalEntries: entries.length,
@@ -1238,6 +1342,17 @@ export function processData(rawEntries) {
     autoInsights,
     rabbitHoles,
     obsessionPhases,
+
+    // Podcasts
+    topShows,
+    uniqueShows,
+    uniqueEpisodes,
+    firstPodcast,
+    podcastTop5ByYear,
+    hourComparison,
+    longestPodcastDay,
+    oneAndDone,
+    rideOrDie,
 
     // For search
     artistMap,

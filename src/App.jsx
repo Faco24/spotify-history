@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { processData, computeGenreData } from './utils/dataProcessor';
+import { computeGenreData } from './utils/dataProcessor';
 import DataLoader from './components/DataLoader';
 import WrappedDashboard from './components/WrappedDashboard';
 import EvolutionSection from './components/EvolutionSection';
@@ -7,6 +7,7 @@ import DeviceSection from './components/DeviceSection';
 import BehaviorSection from './components/BehaviorSection';
 import SearchSection from './components/SearchSection';
 import FunStatsSection from './components/FunStatsSection';
+import PodcastSection from './components/PodcastSection';
 
 const TABS = [
   { id: 'wrapped', label: 'All-Time Wrapped' },
@@ -15,6 +16,7 @@ const TABS = [
   { id: 'behavior', label: 'Behavior' },
   { id: 'search', label: 'Search & Explore' },
   { id: 'fun', label: 'Fun Stats' },
+  { id: 'podcasts', label: 'Podcasts' },
 ];
 
 async function fetchGenreMap(artists, apiKey) {
@@ -79,8 +81,22 @@ export default function App() {
         if (Array.isArray(parsed)) allEntries.push(...parsed);
       }
       setProgress(`Processing ${allEntries.length.toLocaleString()} entries…`);
-      await new Promise(r => setTimeout(r, 20));
-      const result = processData(allEntries);
+      const worker = new Worker(
+        new URL('./workers/processWorker.js', import.meta.url),
+        { type: 'module' }
+      );
+      const result = await new Promise((resolve, reject) => {
+        worker.onmessage = (e) => {
+          worker.terminate();
+          if (e.data.ok) resolve(e.data.result);
+          else reject(new Error(e.data.error));
+        };
+        worker.onerror = (e) => {
+          worker.terminate();
+          reject(new Error(e.message));
+        };
+        worker.postMessage(allEntries);
+      });
       setData(result);
     } catch (err) {
       console.error(err);
@@ -182,6 +198,7 @@ export default function App() {
         {activeTab === 'behavior' && <BehaviorSection data={data} />}
         {activeTab === 'search' && <SearchSection data={data} />}
         {activeTab === 'fun' && <FunStatsSection data={data} />}
+        {activeTab === 'podcasts' && <PodcastSection data={data} />}
       </main>
     </div>
   );
